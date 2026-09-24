@@ -10,7 +10,6 @@ import subprocess
 from pathlib import Path
 from mpmath import mp, mpf, nint, log10, ceil, matrix, lu_solve, fsum
 from joblib import Parallel, delayed
-import mpmath as mp
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 import heapq
@@ -19,6 +18,8 @@ from sympy import Matrix, Rational
 import gmpy2
 from scipy.sparse import lil_matrix
 import os
+sys.set_int_max_str_digits(100000)
+gmpy2.get_context().precision = 1024
 
 
 def save_graph(filename, g):
@@ -31,25 +32,19 @@ def open_graph(filename):
         return pickle.load(handle)
 
 
-def compute_ss_contact_probabilities(markov_graph, n_walkers=1, precision=400,
-                                     is_approximate=False):
+def compute_ss_contact_probabilities(markov_graph, n_walkers=1, is_approximate=False):
     """
     Compute steady-state contact probabilities using arbitrary precision.
-
-    Parameters
-    ----------
-    markov_graph : dict
-        Markov transition table
-    n_walkers : int
-        Maximum power-sum order
-    precision : int
-        Decimal precision for mpf arithmetic
 
     Returns
     -------
     dict with:
         ss_vector : steady-state vector (mpf)
         prob : dict of power sums
+        :param n_walkers: Maximum power-sum order
+        :param markov_graph: Markov transition table
+        :param is_approximate:  compute statistics approximately using floating point arithmetic (True)
+         or exactly using fractions (False)
     """
 
     markov_chain = dict_to_markov_chain(markov_graph)
@@ -57,31 +52,27 @@ def compute_ss_contact_probabilities(markov_graph, n_walkers=1, precision=400,
         ss_vectors = steady_state_vector(markov_chain)
         ss_vectors = [gmpy2.mpq(str(x)) for x in ss_vectors]
     else:
-        ss_vectors = steady_state_vector_exact(markov_chain)[0]  # steady_state_vector2(markov_chain, precision)
+        ss_vectors = steady_state_vector_exact(markov_chain)[0] 
     order = np.argsort(ss_vectors)
 
     if is_approximate:
-        w_elements, w_k = weighted_ss_list(markov_chain, ss_vectors,
-                                           precision=precision, order=1)
-        w_k = None
+        w_elements, w_k = weighted_ss_list(markov_chain, ss_vectors, order=1)
         w_elements = [gmpy2.mpq(str(x)) for x in w_elements]
-        w_k_sorted = None#[[w_k[old_i,old_j] for old_j in order] for old_i in order]
+        w_k_sorted = [[w_k[old_i, old_j] for old_j in order] for old_i in order]
     else:
         w_elements, w_k = weighted_ss_list_fraction(markov_chain, ss_vectors, order=1)
         w_k_sorted = [[w_k[old_i][old_j] for old_j in order] for old_i in order]
 
     w_elements = sorted(w_elements)
     if is_approximate:
-        w_elements2 = sorted(weighted_ss_list(markov_chain, ss_vectors,
-                                              precision=precision, order=2)[0])
+        w_elements2 = sorted(weighted_ss_list(markov_chain, ss_vectors, order=2)[0])
         w_elements2 = [gmpy2.mpq(str(x)) for x in w_elements2]
     else:
         w_elements2 = sorted(weighted_ss_list_fraction(markov_chain, ss_vectors, order=2)[0])
 
-
-    list_p_sums = power_sums_fraction(ss_vectors, n_walkers)  #, precision)
-    list_w_sums = power_sums_fraction(w_elements, n_walkers)  #, precision)
-    list_w_sums2 = power_sums_fraction(w_elements2, min(10, n_walkers), is_parallel=False)  #, precision)
+    list_p_sums = power_sums_fraction(ss_vectors, n_walkers)  
+    list_w_sums = power_sums_fraction(w_elements, n_walkers)  
+    list_w_sums2 = power_sums_fraction(w_elements2, min(10, n_walkers), is_parallel=False)  
     prob, joint_prob, joint_prob2 = {}, {}, {}
     for i in range(n_walkers):
         prob[i + 1] = list_p_sums[i]
@@ -146,7 +137,7 @@ def steady_state_vector_exact(graph):
         i = node_index[u]
         out_edges = list(graph.out_edges(u, data=True))
         if len(out_edges) == 0:
-            # Dangling node → self-loop
+            # Dangling node to self-loop
             P[i][i] = Fraction('1')
         else:
             for _, v, d in out_edges:
@@ -178,9 +169,7 @@ def steady_state_vector_exact(graph):
 
     pi_sym = A_sym.LUsolve(b_sym)
     pi = [Fraction(int(x.p), int(x.q)) for x in pi_sym]
-
     return pi, nodes
-    return g
 
 
 def weighted_ss_list_fraction(graph, ss_vector, order=1):
@@ -220,7 +209,6 @@ def weighted_ss_list_fraction(graph, ss_vector, order=1):
         n = N
         result = [[Fraction(int(i == j)) for j in range(n)] for i in range(n)]  # identity
         for _ in range(k):
-            # result = result @ M
             temp = [[Fraction(0) for _ in range(n)] for _ in range(n)]
             for i in range(n):
                 for l in range(n):
@@ -255,7 +243,7 @@ def power_sums_fraction(roots, r_max, is_parallel=True, n_jobs=-1):
 
     partials = Parallel(n_jobs=n_jobs)(
         delayed(_power_sums_chunk)(chunk, r_max)
-        for chunk in tqdm(chunks, desc="Computing power sums")
+        for chunk in tqdm(chunks, desc="Computing stationary contact probabilities")
         if chunk
     )
     return [sum(p[i] for p in partials) for i in range(r_max)]
@@ -282,7 +270,7 @@ def steady_state_vector(graph):
         i = node_index[u]
         out_edges = list(graph.out_edges(u, data=True))
         if len(out_edges) == 0:
-            # Dangling node → self-loop
+            # Dangling node to self-loop
             rows.append(i)
             cols.append(i)
             data.append(1.0)
@@ -305,7 +293,7 @@ def steady_state_vector(graph):
     return pi
 
 
-def weighted_ss_list(graph, ss_vector, precision=50, order=1):
+def weighted_ss_list(graph, ss_vector, order=1):
     """
     Compute a flat list of s_i * (P^k)_{ij} values.
 
@@ -315,8 +303,6 @@ def weighted_ss_list(graph, ss_vector, precision=50, order=1):
         Graph with transition probabilities stored in 'weight'
     ss_vector : list
         Steady-state vector (mpf values)
-    precision : int
-        Decimal precision
     order : int
         Power of transition matrix (P^k)
 
@@ -325,8 +311,6 @@ def weighted_ss_list(graph, ss_vector, precision=50, order=1):
     list
         Flat list of s_i * (P^k)_{ij} values (mpf)
     """
-
-    #mp.mp.dps = precision
 
     nodes = list(graph.nodes())
     n = len(nodes)
@@ -367,23 +351,43 @@ def _power_sums_chunk(roots, r_max):
     return sums
 
 
-
-def sparse_probs(neighbors, sparsity=0.6):
-    """
-    neighbors: list of neighbors
-    sparsity: fraction of neighbors to keep (0<sparsity<=1)
-    """
+def sparse_probs(neighbors, sparsity=0.6, prob_precision=None):
     n = len(neighbors)
-    keep = max(1, int(n * sparsity))  # at least one neighbor
-    # randomly select which neighbors are active
+    keep = max(1, int(n * sparsity))
+
     active = np.random.choice(n, size=keep, replace=False)
     probs = np.zeros(n)
-    probs[active] = np.random.rand(keep)
-    probs /= probs.sum()  # normalize
+
+    if prob_precision is None:
+        probs[active] = np.random.rand(keep)
+        probs /= probs.sum()
+
+    else:
+        units = 10 ** prob_precision
+
+        if keep > units:
+            raise ValueError("Too many active neighbors for the requested precision.")
+
+        if keep == 1:
+            probs[active] = 1.0
+        else:
+            cuts = np.sort(
+                np.random.choice(
+                    np.arange(1, units),
+                    size=keep - 1,
+                    replace=False,
+                )
+            )
+            weights = np.diff(
+                np.concatenate(([0], cuts, [units]))
+            )
+            np.random.shuffle(weights)
+            probs[active] = weights / units
+
     return probs
 
 
-def build_kth_order_markov_graph(graph, k, sparsity=0.6, loops=True):
+def build_kth_order_markov_graph(graph, k, sparsity=0.6, loops=True, prob_precision=None):
     """
     Build a k-th order Markov chain table from adjacency list.
     Returns: dict mapping history tuple -> (neighbor_probs, neighbor_list)
@@ -403,14 +407,14 @@ def build_kth_order_markov_graph(graph, k, sparsity=0.6, loops=True):
                 neighbors = np.array(adj[node])
                 if len(neighbors) == 0:
                     continue
-                probs = sparse_probs(neighbors, sparsity)
+                probs = sparse_probs(neighbors, sparsity, prob_precision=prob_precision)
                 mask = probs > 0
                 table[(node,)] = (probs[mask], neighbors[mask])
         else:
             # all possible histories of length k
             histories = generate_valid_histories(adj, k + 1)
             sparse_graph = sparsify_strongly_connected_graph(build_history_graph(histories, graph), sparsity)
-            table = assign_sparse_weights(sparse_graph)
+            table = assign_sparse_weights(sparse_graph, prob_precision=prob_precision)
         if not is_markov_chain_strongly_connected(table):
             chk = True
             table = {}
@@ -480,11 +484,9 @@ def sparsify_strongly_connected_graph(g, sparsity=0, min_edges_per_node=2):
     return g_sparse
 
 
-
-def assign_sparse_weights(g_sparse, epsilon=1e-4):
+def assign_sparse_weights(g_sparse, epsilon=1e-4, prob_precision=None):
     """
     Assign random weights to edges, ensuring each node's outgoing edges sum to 1.
-    epsilon: minimal probability to guarantee connectivity
     """
     table = {}
     for node in g_sparse.nodes():
@@ -492,13 +494,36 @@ def assign_sparse_weights(g_sparse, epsilon=1e-4):
         node_neighbors = [nodes[-1] for nodes in neighbors]
         if not neighbors:
             continue
-        probs = np.random.rand(len(neighbors))
-        probs = [Fraction(p) + Fraction(epsilon) for p in probs]
-        total = sum(probs)
-        probs = [p / total for p in probs]
+        if prob_precision is None:
+            probs = np.random.rand(len(neighbors))
+            probs = [Fraction(p) + Fraction(epsilon) for p in probs]
+            total = sum(probs)
+            probs = [p / total for p in probs]
+        else:
+            units = 10 ** prob_precision
+            n = len(neighbors)
+            if n > units:
+                raise ValueError(
+                    "Too many outgoing edges for the requested precision."
+                )
+            if n == 1:
+                probs = [Fraction(1, 1)]
+            else:
+                cuts = np.sort(
+                    np.random.choice(
+                        np.arange(1, units),
+                        size=n - 1,
+                        replace=False,
+                    )
+                )
+                weights = np.diff(
+                    np.concatenate(([0], cuts, [units]))
+                )
+                np.random.shuffle(weights)
+                probs = [Fraction(int(w), units) for w in weights]
         table[node] = (probs, node_neighbors)
-    return table
 
+    return table
 
 
 def is_markov_chain_strongly_connected(table):
@@ -532,7 +557,6 @@ def is_markov_chain_strongly_connected(table):
     if len(g) == 0:
         return False  # no nodes, not connected
     return nx.is_strongly_connected(g)
-
 
 
 def run_walkers(
@@ -739,7 +763,8 @@ def build_history_graph(histories, graph):
     return g
 
 
-def generate_contact_data_from_graph(graph, n_walkers=5, markov_order=0, sequence_length=1000, sparsity=0.8, return_final_state_ids=False):
+def generate_contact_data_from_graph(graph, n_walkers=5, markov_order=0, sequence_length=1000,
+                                     sparsity=0.8, return_final_state_ids=False):
     markov_graph = build_kth_order_markov_graph(graph, markov_order, sparsity)
     positions = run_walkers(markov_graph, sequence_length, n_walkers, return_final_state_ids)
     contact_seq = generate_contact_edges(positions)
@@ -762,7 +787,7 @@ def average_metric(contact_seq, start_p=0, max_p=5):
 def estimate_order(values, threshold=0.01, start_p=1):
     for idx, val in enumerate(values):
         if val < threshold:
-            return idx  # start_p corresponds to p=2
+            return idx  
     return start_p + len(values) - 2  # max p if never below threshold
 
 

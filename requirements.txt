@@ -1,0 +1,10 @@
+numpy
+networkx
+tqdm
+mpmath
+joblib
+scipy
+sympy
+gmpy2
+torch
+jupyterlab
