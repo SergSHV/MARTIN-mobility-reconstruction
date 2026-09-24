@@ -69,7 +69,7 @@ pip install -r requirements.txt
 
 
 
-Exact reconstruction additionally requires \[MPSolve](https://numpi.dm.unipi.it/scientific-computing-libraries/mpsolve/) for multiprecision polynomial root finding. MPSolve must be installed separately and available from the command line.
+Exact reconstruction additionally requires [MPSolve](https://numpi.dm.unipi.it/scientific-computing-libraries/mpsolve/) for multiprecision polynomial root finding. MPSolve must be installed separately and available from the command line.
 
 
 
