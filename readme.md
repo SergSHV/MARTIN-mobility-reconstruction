@@ -2,7 +2,7 @@
 
 
 
-This repository contains the code, data, and numerical experiments accompanying the manuscript.
+This repository contains the code, data and numerical experiments accompanying the manuscript.
 
 
 
@@ -81,7 +81,7 @@ The exact-reconstruction example is provided in the `example/` folder.
 
 
 
-The numerical results reported in Figures 3, 5, and 6 can be reproduced from the corresponding folders in `experiments/`.
+The numerical results reported in Figures 3, 5-6 can be reproduced from the corresponding folders in `experiments/`.
 
 
 
