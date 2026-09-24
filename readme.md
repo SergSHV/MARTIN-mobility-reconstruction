@@ -1,4 +1,4 @@
-\# MARTIN: Reconstructing higher-order human mobility from temporal contact networks
+# MARTIN: Reconstructing higher-order human mobility from temporal contact networks
 
 
 
@@ -10,21 +10,20 @@ MARTIN reconstructs finite-order Markov mobility processes from temporal contact
 
 
 
-\## Code
+## Code
 
 
 
 The `code/` folder contains the reconstruction methods.
 
 
+* `martin.py` contains `recover_markov_chain` for exact reconstruction and `recover_markov_chain_numerical` for numerical reconstruction.
 
-\* `martin.py` contains `recover\_markov\_chain` for exact reconstruction and `recover\_markov\_chain\_numerical` for numerical reconstruction.
-
-\* `utils.py` contains supporting functions used by the reconstruction methods and numerical experiments.
-
+* `utils.py` contains supporting functions used by the reconstruction methods and numerical experiments.
 
 
-\## Example
+
+## Example
 
 
 
@@ -36,7 +35,7 @@ The ground-truth transition matrix is used only to generate the contact statisti
 
 
 
-\## Data
+## Data
 
 
 
@@ -44,7 +43,7 @@ The `data/` folder contains the Markov chains used in the numerical experiments,
 
 
 
-\## Experiments
+## Experiments
 
 
 
@@ -54,7 +53,7 @@ Each figure has a separate folder containing the corresponding analysis and plot
 
 
 
-\## Requirements
+## Requirements
 
 
 
@@ -74,7 +73,7 @@ Exact reconstruction additionally requires \[MPSolve](https://numpi.dm.unipi.it/
 
 
 
-\## Reproducing the results
+## Reproducing the results
 
 
 
@@ -92,7 +91,7 @@ Run the notebooks in the corresponding folders to reproduce the analyses and fig
 
 
 
-\## Contact
+## Contact
 
 
 
